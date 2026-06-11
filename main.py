@@ -1,5 +1,3 @@
-# Run with: streamlit run mystery.py
-# Install deps: pip install streamlit google-genai
 
 import streamlit as st
 import json
@@ -25,17 +23,11 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #d4af37; color: #1a1a1a; }
     </style>
-""", unsafe_allow_html=True)  # FIX 1: was unsafe_html=True
+""", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
-# 2. API KEY INPUT (FIX 2: never hardcode keys)
-# ---------------------------------------------------------------------------
-api_key = st.secrets["GEMINI_API_KEY"]
-
-
-# ---------------------------------------------------------------------------
-# 3. CASE GENERATION (FIX 3: cache keyed to api_key, uses session state guard)
+# 2. CASE GENERATION
 # ---------------------------------------------------------------------------
 FALLBACK_CASE = {
     "victim": "Lord Ashton",
@@ -70,9 +62,8 @@ FALLBACK_CASE = {
 }
 
 
-@st.cache_data(show_spinner="Generating your mystery case...", hash_funcs={str: lambda x: x})
-def generate_mystery_case(key: str) -> dict:
-    """Generate a new mystery. Cached per unique api_key value."""
+@st.cache_data(show_spinner="Generating your mystery case...")
+def generate_mystery_case() -> dict:
     prompt = """
     Generate a classic detective murder mystery case data bundle.
     Output strictly raw JSON matching this structure — no markdown, no ```json fences:
@@ -104,7 +95,7 @@ def generate_mystery_case(key: str) -> dict:
     - Make names, setting, and motive original and creative.
     """
     try:
-        client = genai.Client(api_key=key)
+        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
@@ -121,10 +112,10 @@ def generate_mystery_case(key: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 4. SESSION STATE INIT  (FIX 4: case stored in session, new game busts cache)
+# 3. SESSION STATE INIT
 # ---------------------------------------------------------------------------
 if "case" not in st.session_state:
-    st.session_state.case = generate_mystery_case(api_key)
+    st.session_state.case = generate_mystery_case()
     st.session_state.collected_clues = {}
     st.session_state.revealed_contradictions = []
     st.session_state.score = 0
@@ -136,9 +127,10 @@ case = st.session_state.case
 
 
 # ---------------------------------------------------------------------------
-# 5. SIDEBAR — Notebook, Stats, Accusations
+# 4. SIDEBAR
 # ---------------------------------------------------------------------------
 with st.sidebar:
+    st.title("📂 Detective Log")
     st.metric(label="Score", value=f"{st.session_state.score} pts")
     st.markdown(f"**Current Case:** The Death of *{case['victim']}*")
     st.write("---")
@@ -152,7 +144,6 @@ with st.sidebar:
 
     st.write("---")
 
-    # FIX 5: guard accusation so it can't fire on placeholder selection
     st.subheader("🚨 Final Accusation")
     suspect_options = ["Select a suspect..."] + list(case["suspects"].keys())
     accuse_target = st.selectbox("Who is the killer?", suspect_options)
@@ -172,7 +163,7 @@ with st.sidebar:
 
 
 # ---------------------------------------------------------------------------
-# 6. MAIN UI
+# 5. MAIN UI
 # ---------------------------------------------------------------------------
 st.title("🕵️‍♂️ Gemini AI Murder Mystery")
 st.caption("A fresh, AI-generated crime scene every new game.")
@@ -191,7 +182,6 @@ if st.session_state.game_over:
             f"escaped. Final Score: **{st.session_state.score} pts**"
         )
 
-    # FIX 6: clear cache so a new case is generated on restart
     if st.button("🔄 New Game"):
         generate_mystery_case.clear()
         st.session_state.clear()
@@ -231,7 +221,7 @@ for idx, area in enumerate(case["crime_scene"].keys()):
             st.session_state.collected_clues[area] = case["crime_scene"][area]
             st.session_state.score += 20
             st.toast(f"Clue logged for: {area}")
-            st.rerun()  # FIX 7: refresh sidebar immediately
+            st.rerun()
 
 st.write("---")
 
@@ -256,7 +246,6 @@ if st.button("🔦 Expose Contradiction"):
 
     if correct_suspect and correct_area:
         if challenge_area not in st.session_state.collected_clues:
-            # FIX 8: no score penalty for not having searched yet — just block
             st.error("You haven't searched that area yet. Go collect the evidence first!")
         elif challenge_suspect in st.session_state.revealed_contradictions:
             st.warning("You've already exposed this contradiction. No double points!")
