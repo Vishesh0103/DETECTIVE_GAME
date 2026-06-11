@@ -26,3 +26,7 @@ Every correct action earns points. Wrong accusations and false contradictions co
 - 🎨 **Noir detective UI** — dark theme with classic detective aesthetics
 
 ---
+## Tech Stack
+- Python
+- Streamlit
+- Gemini API
